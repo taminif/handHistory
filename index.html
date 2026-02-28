@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Poker Hand Memo</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1c1c1e">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  /* 全体のスタイル */
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #1c1c1e; color: #f2f2f7; margin: 0; padding: 0;
+    touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  }
+  h2, h3 { margin-top: 0; margin-bottom: 12px; font-size: 1.1rem; }
+  
+  /* タブナビゲーション */
+  .nav-bar {
+    display: flex; background-color: #000; padding: 0; position: sticky; top: 0; z-index: 100;
+    border-bottom: 1px solid #38383a;
+  }
+  .nav-btn {
+    flex: 1; background: none; border: none; color: #8e8e93; font-size: 1rem; font-weight: bold;
+    padding: 16px 0; cursor: pointer;
+  }
+  .nav-btn.active { color: #0a84ff; border-bottom: 3px solid #0a84ff; }
+
+  /* コンテンツエリア */
+  .content-area { padding: 16px; }
+  .section { background-color: #2c2c2e; border-radius: 12px; padding: 16px; margin-bottom: 20px; display: none; }
+  .section.active { display: block; }
+
+  /* テキスト・日付入力 */
+  .text-input {
+    width: 100%; background: #1c1c1e; color: #fff; border: 1px solid #48484a; border-radius: 8px;
+    padding: 12px; box-sizing: border-box; font-size: 1.1rem; margin-bottom: 16px;
+    font-family: inherit;
+  }
+
+  /* セッションヘッダー */
+  .session-header {
+    display: flex; justify-content: space-between; align-items: center;
+    background-color: #1c1c1e; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
+    border: 1px solid #38383a;
+  }
+  .session-header-text { font-size: 1rem; font-weight: bold; color: #34c759; }
+
+  /* スライダーと横スクロール */
+  .range-container { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+  input[type=range] { flex-grow: 1; height: 40px; }
+  .range-value { font-size: 1.5rem; font-weight: bold; width: 40px; text-align: right; }
+  
+  .scroll-row {
+    display: flex; overflow-x: auto; gap: 8px; padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .scroll-row::-webkit-scrollbar { display: none; }
+
+  /* ボタン全般 */
+  .btn-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .btn {
+    background-color: #3a3a3c; color: #fff; border: none; border-radius: 8px;
+    padding: 12px 0; font-size: 1rem; font-weight: bold;
+    flex: 1 1 calc(25% - 8px); min-width: 60px; cursor: pointer;
+  }
+  .scroll-row .btn { flex: 0 0 auto; min-width: 64px; }
+  .btn:active { background-color: #636366; }
+  .btn.selected { background-color: #0a84ff; color: #fff; }
+  
+  .btn.fold { background-color: #ff453a; }
+  .btn.call, .btn.check { background-color: #32ade6; }
+  .btn.raise { background-color: #ff9f0a; }
+  .btn.danger { background-color: #ff453a; margin-top: 20px;}
+
+  .card-display {
+    background-color: #000; padding: 12px; border-radius: 8px; text-align: center;
+    font-size: 1.5rem; letter-spacing: 4px; margin-bottom: 16px; min-height: 28px;
+  }
+  .suit-red { color: #ff453a; }
+  .suit-black { color: #fff; }
+
+  .full-btn { width: 100%; background-color: #34c759; padding: 16px; font-size: 1.2rem; margin-top: 10px; }
+  .action-log { background: #000; padding: 12px; border-radius: 8px; font-size: 0.9rem; height: 120px; overflow-y: auto; color: #aaa; }
+  .log-item span { color: #fff; font-weight: bold; }
+  .current-actor { color: #ffd60a; font-size: 1.3rem; font-weight: bold; text-align: center; margin-bottom: 16px; }
+
+  /* ナンバーパッド */
+  #numpad-area { display: none; background-color: #1c1c1e; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+  .bb-display { background: #000; font-size: 2rem; text-align: right; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-weight: bold; color: #ff9f0a;}
+  .numpad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .numpad-btn { background-color: #48484a; color: #fff; border: none; border-radius: 8px; padding: 16px 0; font-size: 1.5rem; font-weight: bold; }
+  .numpad-btn:active { background-color: #636366; }
+  .numpad-action { grid-column: span 3; display: flex; gap: 8px; margin-top: 8px; }
+
+  /* モーダル */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center;
+  }
+  .modal-content {
+    background: #2c2c2e; width: 90%; max-height: 90vh; overflow-y: auto;
+    border-radius: 12px; padding: 20px; box-sizing: border-box;
+  }
+  .modal-content h3 { border-bottom: 1px solid #48484a; padding-bottom: 8px; margin-top: 16px; margin-bottom: 16px;}
+  textarea { width: 100%; height: 80px; background: #1c1c1e; color: #fff; border: 1px solid #48484a; border-radius: 8px; padding: 8px; box-sizing: border-box; font-size: 1rem; }
+  .opp-hand-section { background: #1c1c1e; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
+  .opp-hand-section h4 { margin: 0 0 8px 0; color: #ffd60a; font-size: 1.1rem;}
+
+  /* 履歴カード・リスト */
+  .history-card { background: #1c1c1e; border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid #34c759; }
+  .history-card.lose { border-left-color: #ff453a; }
+  .history-card.chop { border-left-color: #ff9f0a; }
+  .history-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; color: #aaa; }
+  .history-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 8px; color: #fff;}
+  .history-detail { font-size: 0.9rem; color: #ccc; margin-bottom: 8px; }
+  .history-log { background: #000; padding: 8px; border-radius: 4px; font-size: 0.8rem; color: #888; max-height: 60px; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+  <div class="nav-bar">
+    <button class="nav-btn active" id="tab-record" onclick="switchTab('record')">📝 記録する</button>
+    <button class="nav-btn" id="tab-history" onclick="switchTab('history')">📚 履歴を見る</button>
+  </div>
+
+  <div class="content-area">
+    
+    <div id="view-record" style="display: block;">
+      
+      <div id="session-setup-phase" class="section active">
+        <h2 style="color: #0a84ff;">📍 セッション開始</h2>
+        <p style="font-size:0.9rem; color:#aaa; margin-bottom:16px;">今日の日付と場所を設定します。</p>
+        
+        <h3>日付</h3>
+        <input type="date" id="session-date" class="text-input">
+        
+        <h3>場所・イベント名</h3>
+        <input type="text" id="session-location" class="text-input" placeholder="例: アキバギルド、JOPTなど">
+        
+        <button class="btn full-btn" onclick="startSession()">この設定で記録を始める</button>
+      </div>
+
+      <div id="hand-setup-phase" class="section">
+        <div class="session-header">
+          <div class="session-header-text" id="current-session-display">2026-02-28 @ 未設定</div>
+          <button class="btn" style="flex:unset; min-width:unset; padding: 6px 12px; font-size: 0.9rem; margin:0;" onclick="editSession()">変更</button>
+        </div>
+
+        <h3>1. テーブル人数</h3>
+        <div class="range-container">
+          <input type="range" id="table-size" min="2" max="10" value="6">
+          <div class="range-value" id="table-size-val">6</div>
+        </div>
+        
+        <h3>2. 自分のポジション</h3>
+        <div class="btn-grid" id="position-btns"></div>
+        
+        <h3>3. エフェクティブスタック</h3>
+        <div class="scroll-row" id="stack-btns"></div>
+        
+        <h3>4. 自分のハンド</h3>
+        <div class="card-display" id="hand-display">未選択</div>
+        <div class="btn-grid" id="suit-btns">
+          <button class="btn suit-black" onclick="selectSuit('♠️', this, 'hero')">♠️</button>
+          <button class="btn suit-red" onclick="selectSuit('♥️', this, 'hero')">♥️</button>
+          <button class="btn suit-black" onclick="selectSuit('♣️', this, 'hero')">♣️</button>
+          <button class="btn suit-red" onclick="selectSuit('♦️', this, 'hero')">♦️</button>
+        </div>
+        <div class="scroll-row" id="rank-btns"></div>
+        
+        <button class="btn full-btn" id="start-btn" style="display:none;" onclick="startActionPhase()">アクション記録を開始</button>
+      </div>
+
+      <div id="action-phase" class="section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <button class="btn" id="undo-btn" style="flex:unset; min-width:unset; padding: 6px 12px; font-size: 0.9rem; margin:0; background-color: #48484a; opacity: 0.3;" disabled onclick="undoAction()">↩ 戻る</button>
+          <h2 id="street-name" style="margin:0; font-size: 1.5rem; text-align: center; flex-grow: 1;">Preflop</h2>
+          <div style="width: 60px;"></div>
+        </div>
+
+        <div class="current-actor" id="current-actor-display">UTG アクション</div>
+
+        <div id="action-btns-area">
+          <div class="btn-grid" id="action-btns"></div>
+        </div>
+
+        <div id="numpad-area">
+          <div class="bb-display" id="bb-display">0 BB</div>
+          <div class="numpad-grid">
+            <button class="numpad-btn" onclick="typeNum(1)">1</button>
+            <button class="numpad-btn" onclick="typeNum(2)">2</button>
+            <button class="numpad-btn" onclick="typeNum(3)">3</button>
+            <button class="numpad-btn" onclick="typeNum(4)">4</button>
+            <button class="numpad-btn" onclick="typeNum(5)">5</button>
+            <button class="numpad-btn" onclick="typeNum(6)">6</button>
+            <button class="numpad-btn" onclick="typeNum(7)">7</button>
+            <button class="numpad-btn" onclick="typeNum(8)">8</button>
+            <button class="numpad-btn" onclick="typeNum(9)">9</button>
+            <button class="numpad-btn" onclick="typeNum('.')">.</button>
+            <button class="numpad-btn" onclick="typeNum(0)">0</button>
+            <button class="numpad-btn" onclick="typeNum('C')">C</button>
+          </div>
+          <div class="numpad-action">
+            <button class="btn" style="background:#48484a;" onclick="cancelNumpad()">キャンセル</button>
+            <button class="btn" style="background:#34c759;" onclick="submitBetAmount()">決定</button>
+          </div>
+        </div>
+
+        <h3>アクション履歴</h3>
+        <div class="action-log" id="action-log"></div>
+      </div>
+    </div> <div id="view-history" style="display: none;">
+      <div id="history-session-list" class="section active" style="background:transparent; padding:0;">
+        <h2 style="margin-bottom: 16px;">📚 プレイ履歴（セッション別）</h2>
+        <div id="history-sessions"></div>
+        <button class="btn full-btn danger" onclick="clearAllHistory()">全履歴を削除する</button>
+      </div>
+
+      <div id="history-hand-list" class="section" style="background:transparent; padding:0;">
+        <button class="btn" style="background-color: #3a3a3c; margin-bottom: 16px;" onclick="showHistorySessions()">＜ 戻る</button>
+        <h2 id="history-detail-title" style="margin-bottom: 16px; color: #34c759;"></h2>
+        <div id="history-hands"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="result-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h2 style="text-align:center; color:#34c759; margin-top:0;">ハンド終了</h2>
+      
+      <h3>結果 (必須)</h3>
+      <div class="btn-grid">
+        <button class="btn" id="res-win" onclick="selectResult('Win', this)">Win</button>
+        <button class="btn" id="res-lose" onclick="selectResult('Lose', this)">Lose</button>
+        <button class="btn" id="res-chop" onclick="selectResult('Chop', this)">Chop</button>
+      </div>
+
+      <h3>相手のハンド (任意入力)</h3>
+      <div id="opp-hands-container"></div>
+
+      <h3>メモ (任意)</h3>
+      <textarea id="memo-input" placeholder="例: リバーのブラフキャッチ成功、要復習 など"></textarea>
+
+      <button class="btn full-btn" onclick="saveAndReset()">保存して最初に戻る</button>
+    </div>
+  </div>
+
+<script>
+  // --- データ定義 ---
+  const posNames = {
+    2: ['SB', 'BB'], 3: ['BTN', 'SB', 'BB'], 4: ['CO', 'BTN', 'SB', 'BB'],
+    5: ['HJ', 'CO', 'BTN', 'SB', 'BB'], 6: ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
+    7: ['UTG', 'UTG+1', 'HJ', 'CO', 'BTN', 'SB', 'BB'], 8: ['UTG', 'UTG+1', 'UTG+2', 'HJ', 'CO', 'BTN', 'SB', 'BB'],
+    9: ['UTG', 'UTG+1', 'UTG+2', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB'], 10: ['UTG', 'UTG+1', 'UTG+2', 'UTG+3', 'LJ', 'HJ', 'CO', 'BTN', 'SB', 'BB']
+  };
+  const ranks = ['A','K','Q','J','T','9','8','7','6','5','4','3','2'];
+  const stacks = ['~10BB', '20BB', '30BB', '40BB', '50BB', '70BB', '100BB', '150BB+'];
+  
+  let state = {
+    sessionDate: '', sessionLocation: '',
+    tableSize: 6, heroPos: null, stack: null, 
+    heroHand: [], currentSuitHero: null, 
+    oppHands: {}, currentSuitOpp: {}, 
+    players: [], 
+    street: 'Preflop', actorIndex: 0,
+    betLevel: 1, playersToAct: 0,
+    pendingAction: null, currentAmountStr: "0", finalResult: null,
+    actionHistory: []
+  };
+
+  // --- Undo機能 ---
+  function saveActionSnapshot() {
+    const snapshot = {
+      players: JSON.parse(JSON.stringify(state.players)), 
+      street: state.street,
+      actorIndex: state.actorIndex,
+      betLevel: state.betLevel,
+      playersToAct: state.playersToAct,
+      actionLogHtml: document.getElementById('action-log').innerHTML
+    };
+    state.actionHistory.push(snapshot);
+    updateUndoButton();
+  }
+
+  function undoAction() {
+    if (state.actionHistory.length === 0) return;
+    
+    document.getElementById('numpad-area').style.display = 'none';
+    document.getElementById('action-btns-area').style.display = 'block';
+
+    const snapshot = state.actionHistory.pop();
+    
+    state.players = snapshot.players;
+    state.street = snapshot.street;
+    state.actorIndex = snapshot.actorIndex;
+    state.betLevel = snapshot.betLevel;
+    state.playersToAct = snapshot.playersToAct;
+    
+    document.getElementById('action-log').innerHTML = snapshot.actionLogHtml;
+    document.getElementById('street-name').textContent = state.street;
+    
+    renderActionPhase();
+    updateUndoButton();
+  }
+
+  function updateUndoButton() {
+    const btn = document.getElementById('undo-btn');
+    if (state.actionHistory.length > 0) {
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    } else {
+      btn.style.opacity = '0.3';
+      btn.disabled = true;
+    }
+  }
+
+  // --- タブ切り替え ---
+  function switchTab(tabName) {
+    document.getElementById('view-record').style.display = tabName === 'record' ? 'block' : 'none';
+    document.getElementById('view-history').style.display = tabName === 'history' ? 'block' : 'none';
+    document.getElementById('tab-record').className = tabName === 'record' ? 'nav-btn active' : 'nav-btn';
+    document.getElementById('tab-history').className = tabName === 'history' ? 'nav-btn active' : 'nav-btn';
+
+    if (tabName === 'history') loadHistoryGrouped(); 
+  }
+
+  // --- 初期化 ---
+  function init() {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('session-date').value = `${yyyy}-${mm}-${dd}`;
+
+    createScrollBtns('rank-btns', ranks, (r) => selectRank(r, 'hero'));
+    createScrollBtns('stack-btns', stacks, selectStack);
+    updatePositions();
+  }
+
+  function createScrollBtns(containerId, items, onClickFunc) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    items.forEach(item => {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.textContent = item;
+      b.onclick = () => onClickFunc(item, b);
+      container.appendChild(b);
+    });
+  }
+
+  // --- フェーズ0: セッション設定 ---
+  function startSession() {
+    state.sessionDate = document.getElementById('session-date').value;
+    state.sessionLocation = document.getElementById('session-location').value.trim() || '場所未設定';
+    document.getElementById('current-session-display').textContent = `${state.sessionDate} @ ${state.sessionLocation}`;
+    
+    document.getElementById('session-setup-phase').classList.remove('active');
+    document.getElementById('hand-setup-phase').classList.add('active');
+  }
+
+  function editSession() {
+    document.getElementById('hand-setup-phase').classList.remove('active');
+    document.getElementById('session-setup-phase').classList.add('active');
+  }
+
+  // --- フェーズ1: ハンド設定 ---
+  document.getElementById('table-size').addEventListener('input', (e) => {
+    state.tableSize = parseInt(e.target.value);
+    document.getElementById('table-size-val').textContent = state.tableSize;
+    state.heroPos = null; updatePositions(); checkReady();
+  });
+
+  function updatePositions() {
+    const container = document.getElementById('position-btns');
+    container.innerHTML = '';
+    posNames[state.tableSize].forEach(pos => {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.textContent = pos;
+      b.onclick = () => {
+        state.heroPos = pos;
+        Array.from(container.children).forEach(c => c.classList.remove('selected'));
+        b.classList.add('selected'); checkReady();
+      };
+      container.appendChild(b);
+    });
+  }
+
+  function selectStack(stackStr, btnElement) {
+    state.stack = stackStr;
+    Array.from(btnElement.parentElement.children).forEach(c => c.classList.remove('selected'));
+    btnElement.classList.add('selected'); checkReady();
+  }
+
+  function selectSuit(suit, btnElement, target, pos = null) {
+    if (target === 'hero') state.currentSuitHero = suit;
+    else state.currentSuitOpp[pos] = suit;
+    Array.from(btnElement.parentElement.children).forEach(b => b.classList.remove('selected'));
+    btnElement.classList.add('selected');
+  }
+
+  function selectRank(rank, target, pos = null) {
+    let suit = target === 'hero' ? state.currentSuitHero : state.currentSuitOpp[pos];
+    if (!suit) return alert("先にスート(マーク)をタップしてください");
+    
+    let handArr = target === 'hero' ? state.heroHand : state.oppHands[pos];
+    if (handArr.length >= 2) handArr = []; 
+    handArr.push(suit + rank);
+    
+    if (target === 'hero') {
+      state.heroHand = handArr; state.currentSuitHero = null;
+      Array.from(document.getElementById('suit-btns').children).forEach(b => b.classList.remove('selected'));
+      updateHandDisplay(handArr, 'hand-display', '未選択'); checkReady();
+    } else {
+      state.oppHands[pos] = handArr; state.currentSuitOpp[pos] = null;
+      Array.from(document.getElementById(`opp-suit-btns-${pos}`).children).forEach(b => b.classList.remove('selected'));
+      updateHandDisplay(handArr, `opp-hand-display-${pos}`, '不明');
+    }
+  }
+
+  function updateHandDisplay(handArr, elementId, emptyText) {
+    const displayHtml = handArr.map(c => {
+      let colorClass = (c.includes('♥️') || c.includes('♦️')) ? 'suit-red' : 'suit-black';
+      return `<span class="${colorClass}">${c}</span>`;
+    }).join(' ');
+    document.getElementById(elementId).innerHTML = displayHtml || emptyText;
+  }
+
+  function checkReady() {
+    if (state.heroPos && state.stack && state.heroHand.length === 2) {
+      document.getElementById('start-btn').style.display = 'block';
+    } else {
+      document.getElementById('start-btn').style.display = 'none';
+    }
+  }
+
+  // --- フェーズ2: アクション ---
+  function startActionPhase() {
+    if(state.heroHand.length < 2) return;
+    
+    document.getElementById('hand-setup-phase').classList.remove('active');
+    document.getElementById('action-phase').classList.add('active');
+    document.getElementById('action-log').innerHTML = ''; 
+
+    state.actionHistory = [];
+    updateUndoButton();
+
+    state.players = posNames[state.tableSize].map(p => ({ 
+      pos: p, active: true, isHero: (p === state.heroPos), foldedPreflop: false 
+    }));
+    state.street = 'Preflop'; state.betLevel = 1; state.playersToAct = state.players.length; 
+    state.actorIndex = state.tableSize === 2 ? 0 : state.players.findIndex(p => p.pos === 'UTG');
+    if(state.actorIndex === -1) state.actorIndex = 0;
+
+    document.getElementById('street-name').textContent = state.street;
+    renderActionPhase();
+  }
+
+  function renderActionPhase() {
+    const actor = state.players[state.actorIndex];
+    const actorDisplay = document.getElementById('current-actor-display');
+    actorDisplay.textContent = `${actor.isHero ? `【自分】${actor.pos}` : actor.pos} のアクション`;
+    actorDisplay.style.color = actor.isHero ? '#34c759' : '#ffd60a';
+
+    const btnContainer = document.getElementById('action-btns');
+    btnContainer.innerHTML = '';
+
+    btnContainer.appendChild(createActionBtn('Fold', 'fold', () => processAction('Fold')));
+
+    if (state.betLevel === 0) btnContainer.appendChild(createActionBtn('Check', 'check', () => processAction('Check')));
+    else btnContainer.appendChild(createActionBtn('Call', 'call', () => processAction('Call')));
+
+    let raiseText = state.betLevel === 0 ? 'Bet' : (state.betLevel === 2 ? '3Bet' : (state.betLevel >= 3 ? '4Bet+' : 'Raise'));
+    btnContainer.appendChild(createActionBtn(raiseText, 'raise', () => openNumpad(raiseText)));
+    btnContainer.appendChild(createActionBtn('All-in', 'raise', () => openNumpad('All-in')));
+  }
+
+  function createActionBtn(text, colorClass, onClick) {
+    const b = document.createElement('button');
+    b.className = `btn ${colorClass}`; b.textContent = text; b.onclick = onClick;
+    return b;
+  }
+
+  // --- Numpad ---
+  function openNumpad(actionName) {
+    state.pendingAction = actionName; state.currentAmountStr = "0";
+    document.getElementById('bb-display').textContent = "0 BB";
+    document.getElementById('action-btns-area').style.display = 'none';
+    document.getElementById('numpad-area').style.display = 'block';
+  }
+
+  function typeNum(val) {
+    if (val === 'C') {
+      state.currentAmountStr = "0";
+    } else if (val === '.') {
+      if (!state.currentAmountStr.includes('.')) state.currentAmountStr += ".";
+    } else {
+      if (state.currentAmountStr === "0") {
+        state.currentAmountStr = val.toString();
+      } else {
+        if (state.currentAmountStr.includes('.')) {
+          const parts = state.currentAmountStr.split('.');
+          if (parts[1].length < 1) state.currentAmountStr += val.toString();
+        } else if (state.currentAmountStr.length < 5) {
+          state.currentAmountStr += val.toString();
+        }
+      }
+    }
+    document.getElementById('bb-display').textContent = state.currentAmountStr + " BB";
+  }
+
+  function cancelNumpad() {
+    document.getElementById('numpad-area').style.display = 'none';
+    document.getElementById('action-btns-area').style.display = 'block';
+  }
+
+  function submitBetAmount() {
+    if (state.currentAmountStr === "0" && state.pendingAction !== 'All-in') return alert("チップ量を入力してください");
+    
+    if (state.currentAmountStr.endsWith('.')) state.currentAmountStr = state.currentAmountStr.slice(0, -1);
+    
+    let actionText = state.pendingAction;
+    if (state.currentAmountStr !== "0") actionText += ` (${state.currentAmountStr}BB)`;
+    
+    document.getElementById('numpad-area').style.display = 'none';
+    document.getElementById('action-btns-area').style.display = 'block';
+    
+    processAction(actionText, state.pendingAction);
+  }
+
+  function processAction(fullText, baseAction = null) {
+    saveActionSnapshot();
+
+    const actionType = baseAction || fullText;
+    const actor = state.players[state.actorIndex];
+    
+    const log = document.getElementById('action-log');
+    const heroMark = actor.isHero ? '⭐' : '';
+    log.innerHTML += `<div class="log-item">[${state.street}] <span>${actor.pos}${heroMark}</span> : ${fullText}</div>`;
+    log.scrollTop = log.scrollHeight;
+
+    if (actionType === 'Fold') { 
+      actor.active = false; 
+      if (state.street === 'Preflop') actor.foldedPreflop = true;
+      state.playersToAct--; 
+    }
+    else if (actionType === 'Check' || actionType === 'Call') { state.playersToAct--; }
+    else {
+      state.betLevel = actionType.includes('All-in') || actionType.includes('4Bet+') ? 4 : (actionType.includes('3Bet') ? 3 : Math.max(state.betLevel + 1, 1));
+      state.playersToAct = state.players.filter(p => p.active).length - 1; 
+    }
+
+    if (state.players.filter(p => p.active).length <= 1) return showResultModal();
+    if (state.playersToAct <= 0) return nextStreet();
+    advanceNextPlayer();
+  }
+
+  function advanceNextPlayer() {
+    let startIdx = state.actorIndex;
+    do {
+      state.actorIndex = (state.actorIndex + 1) % state.players.length;
+      if (state.players[state.actorIndex].active) return renderActionPhase();
+    } while (state.actorIndex !== startIdx);
+  }
+
+  function nextStreet() {
+    const streets = ['Preflop', 'Flop', 'Turn', 'River', 'Showdown'];
+    const nextIdx = streets.indexOf(state.street) + 1;
+    if (nextIdx >= streets.length - 1) return showResultModal();
+
+    state.street = streets[nextIdx];
+    document.getElementById('street-name').textContent = state.street;
+    state.betLevel = 0; state.playersToAct = state.players.filter(p => p.active).length; 
+
+    let startPos = state.tableSize === 2 ? 'BB' : 'SB';
+    state.actorIndex = state.players.findIndex(p => p.pos === startPos);
+    
+    document.getElementById('action-log').innerHTML += `<div class="log-item" style="color:#32ade6; margin-top:8px;">--- ${state.street} ---</div>`;
+
+    if (!state.players[state.actorIndex].active) advanceNextPlayer(); 
+    else renderActionPhase();
+  }
+
+  // --- フェーズ3: 結果入力 ---
+  function showResultModal() {
+    document.getElementById('result-modal').style.display = 'flex';
+    
+    selectResult('Lose', document.getElementById('res-lose'));
+
+    const oppContainer = document.getElementById('opp-hands-container');
+    oppContainer.innerHTML = ''; state.oppHands = {}; state.currentSuitOpp = {}; 
+
+    const opponentsToShow = state.players.filter(p => !p.isHero && !p.foldedPreflop);
+    
+    if (opponentsToShow.length === 0) {
+      oppContainer.innerHTML = '<p style="color:#8e8e93; font-size:0.9rem;">全員がプリフロップでフォールドしたため入力欄はありません。</p>';
+    }
+
+    opponentsToShow.forEach(p => {
+      state.oppHands[p.pos] = []; state.currentSuitOpp[p.pos] = null;
+      const statusText = p.active ? "" : " (Postflop Fold)";
+      const color = p.active ? "#ffd60a" : "#8e8e93"; 
+      
+      const wrap = document.createElement('div');
+      wrap.className = 'opp-hand-section';
+      wrap.innerHTML = `
+        <h4 style="color:${color};">${p.pos}${statusText}</h4>
+        <div class="card-display" id="opp-hand-display-${p.pos}" style="min-height:24px; font-size:1.2rem; padding:8px;">不明</div>
+        <div class="btn-grid" id="opp-suit-btns-${p.pos}">
+          <button class="btn suit-black" onclick="selectSuit('♠️', this, 'opp', '${p.pos}')">♠️</button>
+          <button class="btn suit-red" onclick="selectSuit('♥️', this, 'opp', '${p.pos}')">♥️</button>
+          <button class="btn suit-black" onclick="selectSuit('♣️', this, 'opp', '${p.pos}')">♣️</button>
+          <button class="btn suit-red" onclick="selectSuit('♦️', this, 'opp', '${p.pos}')">♦️</button>
+        </div>
+        <div class="scroll-row" id="opp-rank-btns-${p.pos}"></div>
+      `;
+      oppContainer.appendChild(wrap);
+      createScrollBtns(`opp-rank-btns-${p.pos}`, ranks, (r) => selectRank(r, 'opp', p.pos));
+    });
+  }
+
+  function selectResult(res, btnElement) {
+    state.finalResult = res;
+    ['res-win', 'res-lose', 'res-chop'].forEach(id => document.getElementById(id).classList.remove('selected'));
+    btnElement.classList.add('selected');
+  }
+
+  // --- データの保存 ---
+  function saveAndReset() {
+    if (!state.finalResult) return alert("Win / Lose / Chop のいずれかの結果を選択してください。");
+
+    const now = new Date();
+    const cleanOppHands = {};
+    for (const pos in state.oppHands) {
+      if (state.oppHands[pos].length === 2) cleanOppHands[pos] = state.oppHands[pos];
+    }
+
+    const handData = {
+      id: now.getTime(),
+      date: state.sessionDate,
+      time: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      location: state.sessionLocation,
+      tableSize: state.tableSize,
+      heroPos: state.heroPos,
+      stack: state.stack,
+      heroHand: state.heroHand,
+      actionLogHtml: document.getElementById('action-log').innerHTML,
+      result: state.finalResult,
+      oppHands: cleanOppHands,
+      memo: document.getElementById('memo-input').value
+    };
+
+    let history = JSON.parse(localStorage.getItem('pokerHands') || '[]');
+    history.unshift(handData);
+    localStorage.setItem('pokerHands', JSON.stringify(history));
+
+    // UIリセット
+    state.heroHand = []; state.oppHands = {}; state.currentSuitHero = null; state.currentSuitOpp = {}; state.finalResult = null;
+    document.getElementById('hand-display').innerHTML = '未選択';
+    document.getElementById('memo-input').value = '';
+    
+    ['suit-btns', 'res-win', 'res-lose', 'res-chop'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) Array.from(el.children).forEach(b => b.classList.remove('selected'));
+    });
+
+    document.getElementById('result-modal').style.display = 'none';
+    document.getElementById('action-phase').classList.remove('active');
+    document.getElementById('hand-setup-phase').classList.add('active');
+    
+    checkReady();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // --- 履歴：セッション一覧表示 ---
+  function loadHistoryGrouped() {
+    document.getElementById('history-session-list').classList.add('active');
+    document.getElementById('history-hand-list').classList.remove('active');
+    
+    const listContainer = document.getElementById('history-sessions');
+    listContainer.innerHTML = '';
+    
+    const history = JSON.parse(localStorage.getItem('pokerHands') || '[]');
+    if (history.length === 0) {
+      listContainer.innerHTML = '<p style="color:#aaa;">まだ記録されたハンドがありません。</p>';
+      return;
+    }
+
+    const sessions = {};
+    history.forEach(data => {
+      const key = `${data.date}|||${data.location}`;
+      if (!sessions[key]) sessions[key] = [];
+      sessions[key].push(data);
+    });
+
+    for (const key in sessions) {
+      const parts = key.split('|||');
+      const date = parts[0];
+      const loc = parts[1];
+      const count = sessions[key].length;
+
+      const btn = document.createElement('button');
+      btn.className = 'btn full-btn';
+      btn.style.backgroundColor = '#2c2c2e';
+      btn.style.border = '1px solid #48484a';
+      btn.style.textAlign = 'left';
+      btn.style.display = 'flex';
+      btn.style.justifyContent = 'space-between';
+      btn.style.marginBottom = '12px';
+      
+      btn.innerHTML = `<span>📅 ${date} 📍 ${loc}</span> <span style="color:#0a84ff;">${count} Hands ＞</span>`;
+      btn.onclick = () => renderSessionHands(key, sessions[key]);
+      listContainer.appendChild(btn);
+    }
+  }
+
+  // --- 履歴：個別ハンドリスト表示 ---
+  function renderSessionHands(sessionKey, hands) {
+    document.getElementById('history-session-list').classList.remove('active');
+    document.getElementById('history-hand-list').classList.add('active');
+    
+    const parts = sessionKey.split('|||');
+    document.getElementById('history-detail-title').textContent = `${parts[0]} @ ${parts[1]}`;
+    
+    const container = document.getElementById('history-hands');
+    container.innerHTML = '';
+
+    hands.forEach(data => {
+      const card = document.createElement('div');
+      card.className = `history-card ${data.result.toLowerCase()}`;
+      
+      const heroHandHtml = data.heroHand.map(c => {
+        let colorClass = (c.includes('♥️') || c.includes('♦️')) ? 'suit-red' : '';
+        return `<span class="${colorClass}">${c}</span>`;
+      }).join(' ');
+
+      let oppHandsText = '';
+      for (const pos in data.oppHands) {
+        oppHandsText += `[${pos}: ${data.oppHands[pos].join('')}] `;
+      }
+      if (oppHandsText) oppHandsText = `<div class="history-detail">相手: ${oppHandsText}</div>`;
+
+      const memoText = data.memo ? `<div class="history-detail" style="color:#ffd60a;">📝 ${data.memo}</div>` : '';
+
+      card.innerHTML = `
+        <div class="history-header">
+          <span>🕒 ${data.time}</span>
+        </div>
+        <div class="history-title">
+          ${data.heroPos} (${data.tableSize}max, ${data.stack}) | 
+          <span style="letter-spacing:2px; background:#000; padding:2px 6px; border-radius:4px;">${heroHandHtml}</span>
+        </div>
+        <div class="history-detail" style="font-weight:bold; color: #fff;">結果: ${data.result}</div>
+        ${oppHandsText}
+        ${memoText}
+        <div class="history-log">${data.actionLogHtml}</div>
+      `;
+      container.appendChild(card);
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showHistorySessions() {
+    document.getElementById('history-hand-list').classList.remove('active');
+    document.getElementById('history-session-list').classList.add('active');
+  }
+
+  function clearAllHistory() {
+    if (confirm("本当にすべての履歴を削除しますか？\n（この操作は取り消せません）")) {
+      localStorage.removeItem('pokerHands');
+      loadHistoryGrouped();
+    }
+  }
+
+  // --- Service Worker の登録 (PWA用) ---
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registered!', reg))
+        .catch(err => console.log('Service Worker registration failed:', err));
+    });
+  }
+
+  init();
+</script>
+</body>
+</html>
