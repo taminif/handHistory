@@ -35,8 +35,17 @@
 
   /* テキスト・日付入力 */
   .text-input {
-    background: #1c1c1e; color: #fff; border: 1px solid #48484a; border-radius: 8px;
-    padding: 12px; box-sizing: border-box; font-size: 1.1rem; margin-bottom: 16px;
+    display: block; 
+    width: 100%;
+    max-width: 100%; 
+    background: #1c1c1e; 
+    color: #fff; 
+    border: 1px solid #48484a; 
+    border-radius: 8px;
+    padding: 12px; 
+    box-sizing: border-box; 
+    font-size: 1.1rem; 
+    margin: 0 0 16px 0; 
     font-family: inherit;
   }
 
@@ -66,6 +75,22 @@
     padding: 12px 0; font-size: 1rem; font-weight: bold;
     flex: 1 1 calc(25% - 8px); min-width: 60px; cursor: pointer;
   }
+
+  /* 修正: ポジションボタンを必ず5列(最大2行)にする専用グリッド */
+  #position-btns {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  #position-btns .btn {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 0;
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
   .scroll-row .btn { flex: 0 0 auto; min-width: 64px; }
   .btn:active { background-color: #636366; }
   .btn.selected { background-color: #0a84ff; color: #fff; }
@@ -156,9 +181,7 @@
         </div>
         
         <h3>2. 自分のポジション</h3>
-        <div class="btn-grid" id="position-btns"></div>
-        
-        <h3>3. エフェクティブスタック</h3>
+        <div id="position-btns"></div> <h3>3. エフェクティブスタック</h3>
         <div class="scroll-row" id="stack-btns"></div>
         
         <h3>4. 自分のハンド</h3>
@@ -172,6 +195,8 @@
         <div class="scroll-row" id="rank-btns"></div>
         
         <button class="btn full-btn" id="start-btn" style="display:none;" onclick="startActionPhase()">アクション記録を開始</button>
+        
+        <button class="btn full-btn" style="background-color: #3a3a3c; margin-top: 24px;" onclick="endRecording()">🏁 記録を終了する</button>
       </div>
 
       <div id="action-phase" class="section">
@@ -368,6 +393,11 @@
     document.getElementById('session-setup-phase').classList.add('active');
   }
 
+  // --- 記録を終了する ---
+  function endRecording() {
+    switchTab('history');
+  }
+
   // --- フェーズ1: ハンド設定 ---
   document.getElementById('table-size').addEventListener('input', (e) => {
     state.tableSize = parseInt(e.target.value);
@@ -386,8 +416,15 @@
         Array.from(container.children).forEach(c => c.classList.remove('selected'));
         b.classList.add('selected'); checkReady();
       };
+      
+      // 選択状態の保持（自動進行用）
+      if (state.heroPos === pos) {
+        b.classList.add('selected');
+      }
+      
       container.appendChild(b);
     });
+    checkReady();
   }
 
   function selectStack(stackStr, btnElement) {
@@ -547,6 +584,13 @@
       actor.active = false; 
       if (state.street === 'Preflop') actor.foldedPreflop = true;
       state.playersToAct--; 
+      
+      // 修正: 自分がプリフロップでフォールドした場合は即座に保存して次へ進む
+      if (actor.isHero && state.street === 'Preflop') {
+        state.finalResult = 'Lose';
+        saveAndReset(true); // true を渡して自動スキップフラグとする
+        return;
+      }
     }
     else if (actionType === 'Check' || actionType === 'Call') { state.playersToAct--; }
     else {
@@ -629,8 +673,19 @@
     btnElement.classList.add('selected');
   }
 
+  // --- 次のハンドのポジションを計算する関数 ---
+  function getNextPosition(currentPos, tableSize) {
+    const positions = posNames[tableSize];
+    const idx = positions.indexOf(currentPos);
+    if (idx === -1) return null;
+    // 配列内で1つ前（左隣）に移動。UTG(0)なら末尾(BB)へ。
+    const nextIdx = (idx - 1 + positions.length) % positions.length;
+    return positions[nextIdx];
+  }
+
   // --- データの保存 ---
-  function saveAndReset() {
+  // isAutoSkipがtrueの場合、確認ダイアログ等を出さずに素早く次へ進む
+  function saveAndReset(isAutoSkip = false) {
     if (!state.finalResult) return alert("Win / Lose / Chop のいずれかの結果を選択してください。");
 
     const now = new Date();
@@ -658,8 +713,13 @@
     history.unshift(handData);
     localStorage.setItem('pokerHands', JSON.stringify(history));
 
+    // 修正: 次のハンドのポジションを計算してセットする
+    const nextHeroPos = getNextPosition(state.heroPos, state.tableSize);
+
     // UIリセット
     state.heroHand = []; state.oppHands = {}; state.currentSuitHero = null; state.currentSuitOpp = {}; state.finalResult = null;
+    state.heroPos = nextHeroPos; // 次のポジションを代入
+    
     document.getElementById('hand-display').innerHTML = '未選択';
     document.getElementById('memo-input').value = '';
     
@@ -667,6 +727,9 @@
       const el = document.getElementById(id);
       if(el) Array.from(el.children).forEach(b => b.classList.remove('selected'));
     });
+
+    // ポジションボタンの選択状態を更新
+    updatePositions();
 
     document.getElementById('result-modal').style.display = 'none';
     document.getElementById('action-phase').classList.remove('active');
